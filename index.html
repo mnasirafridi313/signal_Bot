@@ -94,6 +94,30 @@
             color: #00d4ff;
         }
 
+        .expiry-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .expiry-btn {
+            padding: 12px;
+            background: #0f172a;
+            border: 1px solid #1e2a3e;
+            border-radius: 60px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            color: white;
+            transition: all 0.2s;
+        }
+
+        .expiry-btn.active {
+            border-color: #00d4ff;
+            background: #1e2a3e;
+            color: #00d4ff;
+        }
+
         .refresh-btn {
             width: 100%;
             padding: 16px;
@@ -138,9 +162,16 @@
             font-size: 1rem;
         }
 
+        .market-info {
+            font-size: 0.7rem;
+            color: #6b7280;
+            margin-top: 12px;
+        }
+
         @media (max-width: 500px) {
             .signal { font-size: 2rem; }
             .pair-grid { grid-template-columns: repeat(2, 1fr); }
+            .expiry-grid { grid-template-columns: repeat(2, 1fr); }
         }
     </style>
 </head>
@@ -157,28 +188,46 @@
         </div>
 
         <div id="pairContainer" class="pair-grid"></div>
+        <div id="expiryContainer" class="expiry-grid"></div>
         <button class="refresh-btn" id="refreshBtn">🔄 GET SIGNAL</button>
     </div>
 
     <div class="card signal-card">
         <div id="signalText" class="signal signal-wait">PRESS REFRESH</div>
         <div id="timerArea"></div>
+        <div id="marketInfo" class="market-info"></div>
     </div>
 </div>
 
 <script>
     // ==================== CONFIG ====================
+    const API_KEY = 'A5MS68aoOqXE3gRAdrW4GLJ8L';
+    const API_BASE = 'https://api-v4.fcsapi.com';
+    
     const PAIRS = {
         binary: ['EUR/USD', 'USD/JPY', 'GBP/USD'],
         spot: ['XAU/USD', 'BTC/USD']
     };
     
-    const BINARY_TIMING = { 60: 20, 90: 30, 120: 40, 300: 60 };
-    const SPOT_VALID = { 1: 3, 5: 15, 15: 45, 30: 90 };
+    const BINARY_EXPIRY = [
+        { value: 60, label: '60 sec', window: 20 },
+        { value: 90, label: '90 sec', window: 30 },
+        { value: 120, label: '120 sec', window: 40 },
+        { value: 300, label: '5 min', window: 60 }
+    ];
+    
+    const SPOT_TIMEFRAMES = [
+        { value: 1, label: '1 min', valid: 3 },
+        { value: 5, label: '5 min', valid: 15 },
+        { value: 15, label: '15 min', valid: 45 },
+        { value: 30, label: '30 min', valid: 90 }
+    ];
     
     let currentMode = 'binary';
     let currentPair = 'EUR/USD';
     let currentExpiry = 60;
+    let currentPlaceWindow = 20;
+    let currentTimeframe = 1;
     let countdownInterval = null;
     
     function showNotification(title, msg) {
@@ -187,89 +236,126 @@
         }
     }
     
-    // ==================== REAL DATA FROM ALPHA VANTAGE (FREE) ====================
-    // Using Alpha Vantage free API - no key needed for demo data
-    // For real production, get free key from alphavantage.co
+    // Calculate SMA
+    function calculateSMA(prices, period) {
+        if (prices.length < period) return null;
+        const sum = prices.slice(-period).reduce((a, b) => a + b, 0);
+        return sum / period;
+    }
+    
+    // Calculate True Range
+    function trueRange(high, low, prevClose) {
+        return Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
+    }
+    
+    // Calculate ADX and DI
+    function calculateADX(highs, lows, closes, period = 14) {
+        if (closes.length < period + 1) return { adx: 0, plusDI: 0, minusDI: 0 };
+        
+        let tr = [];
+        let plusDM = [];
+        let minusDM = [];
+        
+        for (let i = 1; i < closes.length; i++) {
+            const highDiff = highs[i] - highs[i-1];
+            const lowDiff = lows[i-1] - lows[i];
+            
+            tr.push(trueRange(highs[i], lows[i], closes[i-1]));
+            plusDM.push(highDiff > lowDiff && highDiff > 0 ? highDiff : 0);
+            minusDM.push(lowDiff > highDiff && lowDiff > 0 ? lowDiff : 0);
+        }
+        
+        let smoothedTR = tr.slice(0, period).reduce((a, b) => a + b, 0);
+        let smoothedPlusDM = plusDM.slice(0, period).reduce((a, b) => a + b, 0);
+        let smoothedMinusDM = minusDM.slice(0, period).reduce((a, b) => a + b, 0);
+        
+        let plusDI = [];
+        let minusDI = [];
+        let dx = [];
+        
+        for (let i = period; i < tr.length; i++) {
+            smoothedTR = smoothedTR - (smoothedTR / period) + tr[i];
+            smoothedPlusDM = smoothedPlusDM - (smoothedPlusDM / period) + plusDM[i];
+            smoothedMinusDM = smoothedMinusDM - (smoothedMinusDM / period) + minusDM[i];
+            
+            const pDI = (smoothedPlusDM / smoothedTR) * 100;
+            const mDI = (smoothedMinusDM / smoothedTR) * 100;
+            plusDI.push(pDI);
+            minusDI.push(mDI);
+            
+            const diSum = pDI + mDI;
+            if (diSum > 0) {
+                dx.push(Math.abs(pDI - mDI) / diSum * 100);
+            } else {
+                dx.push(0);
+            }
+        }
+        
+        if (dx.length < period) return { adx: 0, plusDI: plusDI[plusDI.length-1] || 0, minusDI: minusDI[minusDI.length-1] || 0 };
+        
+        let adx = dx.slice(-period).reduce((a, b) => a + b, 0) / period;
+        
+        return {
+            adx: adx,
+            plusDI: plusDI[plusDI.length-1] || 0,
+            minusDI: minusDI[minusDI.length-1] || 0
+        };
+    }
     
     async function fetchRealData(symbol) {
+        let apiSymbol = symbol.replace('/', '');
+        
         try {
-            let fromSymbol = symbol.replace('/', '');
-            let toSymbol = '';
+            const url = `${API_BASE}/forex/history?symbol=${apiSymbol}&period=1h&limit=100&access_key=${API_KEY}`;
+            console.log('Fetching:', url);
             
-            // Parse pair like EUR/USD
-            const parts = symbol.split('/');
-            const base = parts[0];
-            const quote = parts[1];
+            const response = await fetch(url);
+            const data = await response.json();
             
-            // For Gold and Bitcoin
-            if (symbol === 'XAU/USD') {
-                // Simulate realistic Gold price movement
-                const basePrice = 3020;
-                const change = (Math.random() - 0.5) * 8;
-                const currentPrice = basePrice + change;
-                const sma50 = basePrice + (Math.random() - 0.5) * 15;
-                const adx = 28 + Math.random() * 15;
-                const plusDI = 20 + Math.random() * 15;
-                const minusDI = 15 + Math.random() * 15;
-                
-                return {
-                    priceAboveSMA: currentPrice > sma50,
-                    adxStrong: adx > 25,
-                    diCall: plusDI > minusDI,
-                    diPut: minusDI > plusDI,
-                    adx: adx
-                };
+            if (!data.response || data.response.length < 50) {
+                throw new Error('Insufficient data');
             }
             
-            if (symbol === 'BTC/USD') {
-                const basePrice = 65000;
-                const change = (Math.random() - 0.5) * 800;
-                const currentPrice = basePrice + change;
-                const sma50 = basePrice + (Math.random() - 0.5) * 1500;
-                const adx = 32 + Math.random() * 18;
-                const plusDI = 22 + Math.random() * 12;
-                const minusDI = 18 + Math.random() * 12;
-                
-                return {
-                    priceAboveSMA: currentPrice > sma50,
-                    adxStrong: adx > 25,
-                    diCall: plusDI > minusDI,
-                    diPut: minusDI > plusDI,
-                    adx: adx
-                };
-            }
+            const candles = data.response;
+            const closes = candles.map(c => parseFloat(c.c));
+            const highs = candles.map(c => parseFloat(c.h));
+            const lows = candles.map(c => parseFloat(c.l));
+            const currentPrice = closes[closes.length - 1];
             
-            // For Forex pairs - using realistic simulated data based on real market conditions
-            // This simulates real market behavior without API errors
-            const forexBase = {
-                'EUR/USD': { price: 1.09, volatility: 0.002 },
-                'USD/JPY': { price: 149.5, volatility: 0.3 },
-                'GBP/USD': { price: 1.29, volatility: 0.003 }
+            const sma50 = calculateSMA(closes, 50);
+            const priceAboveSMA = currentPrice > sma50;
+            
+            const { adx, plusDI, minusDI } = calculateADX(highs, lows, closes, 14);
+            const adxStrong = adx > 25;
+            const diCall = plusDI > minusDI;
+            const diPut = minusDI > plusDI;
+            
+            // Show market data
+            document.getElementById('marketInfo').innerHTML = `ADX: ${adx.toFixed(1)} | +DI: ${plusDI.toFixed(1)} | -DI: ${minusDI.toFixed(1)}`;
+            
+            return {
+                symbol,
+                priceAboveSMA,
+                adxStrong,
+                diCall,
+                diPut,
+                adx
             };
             
-            const data = forexBase[base + '/' + quote];
-            if (data) {
-                const direction = Math.random() > 0.5 ? 1 : -1;
-                const currentPrice = data.price + (Math.random() - 0.5) * data.volatility;
-                const sma50 = data.price + (Math.random() - 0.5) * data.volatility * 2;
-                const adx = 22 + Math.random() * 18;
-                const plusDI = 18 + Math.random() * 15;
-                const minusDI = 18 + Math.random() * 15;
-                
-                return {
-                    priceAboveSMA: currentPrice > sma50,
-                    adxStrong: adx > 25,
-                    diCall: plusDI > minusDI,
-                    diPut: minusDI > plusDI,
-                    adx: adx
-                };
-            }
-            
-            throw new Error('Symbol not found');
-            
         } catch (error) {
-            console.error('Error:', error);
-            return null;
+            console.error('API Error:', error);
+            document.getElementById('marketInfo').innerHTML = '⚠️ API error — using fallback data';
+            
+            // Fallback to realistic simulation when API fails
+            const direction = Math.random() > 0.5;
+            const adx = 28 + Math.random() * 12;
+            return {
+                priceAboveSMA: direction,
+                adxStrong: adx > 25,
+                diCall: direction,
+                diPut: !direction,
+                adx: adx
+            };
         }
     }
     
@@ -279,7 +365,7 @@
         const { priceAboveSMA, adxStrong, diCall, diPut, adx } = data;
         
         if (!adxStrong) {
-            return { signalText: '⚖️ WAIT', strength: 'wait' };
+            return { signalText: `⚖️ WAIT (ADX ${adx.toFixed(1)})`, strength: 'wait' };
         }
         
         let signalDirection = null;
@@ -288,7 +374,7 @@
         else signalDirection = 'conflict';
         
         if (signalDirection === 'conflict') {
-            return { signalText: '⚖️ WAIT', strength: 'wait' };
+            return { signalText: '⚖️ WAIT (Conflicting)', strength: 'wait' };
         }
         
         if (adx > 40) {
@@ -309,7 +395,7 @@
         }
     }
     
-    function updateSignalUI(signal, mode) {
+    function updateSignalUI(signal, mode, placeWindow) {
         const el = document.getElementById('signalText');
         el.textContent = signal.signalText;
         el.className = 'signal';
@@ -325,7 +411,6 @@
         }
         
         if (mode === 'binary' && signal.strength !== 'wait') {
-            const placeWindow = BINARY_TIMING[currentExpiry] || 30;
             const timerDiv = document.getElementById('timerArea');
             timerDiv.innerHTML = `<div class="timer">⏰ PLACE WITHIN ${placeWindow} SECONDS</div>`;
             setTimeout(() => {
@@ -362,7 +447,7 @@
     
     async function refreshSignal() {
         const el = document.getElementById('signalText');
-        el.textContent = '🔄 LOADING...';
+        el.textContent = '🔄 FETCHING LIVE DATA...';
         el.className = 'signal signal-wait';
         
         if (countdownInterval) clearInterval(countdownInterval);
@@ -381,15 +466,15 @@
             if (signal.strength === 'wait') {
                 showWaitMessage();
             } else {
-                updateSignalUI(signal, 'binary');
+                updateSignalUI(signal, 'binary', currentPlaceWindow);
             }
         } else {
+            const tf = SPOT_TIMEFRAMES.find(t => t.value === currentTimeframe);
             if (signal.strength === 'wait') {
                 showWaitMessage();
             } else {
                 updateSignalUI(signal, 'spot');
-                const validMinutes = SPOT_VALID[30] || 15;
-                startSpotCountdown(validMinutes);
+                startSpotCountdown(tf.valid);
             }
         }
     }
@@ -408,6 +493,31 @@
         });
     }
     
+    function renderExpiry() {
+        const container = document.getElementById('expiryContainer');
+        if (currentMode === 'binary') {
+            container.innerHTML = BINARY_EXPIRY.map(e => `<button class="expiry-btn ${currentExpiry === e.value ? 'active' : ''}" data-exp="${e.value}" data-win="${e.window}">${e.label}</button>`).join('');
+            
+            document.querySelectorAll('.expiry-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    currentExpiry = parseInt(btn.dataset.exp);
+                    currentPlaceWindow = parseInt(btn.dataset.win);
+                    renderExpiry();
+                });
+            });
+        } else {
+            container.innerHTML = SPOT_TIMEFRAMES.map(t => `<button class="expiry-btn ${currentTimeframe === t.value ? 'active' : ''}" data-tf="${t.value}">${t.label}</button>`).join('');
+            
+            document.querySelectorAll('.expiry-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    currentTimeframe = parseInt(btn.dataset.tf);
+                    renderExpiry();
+                    refreshSignal();
+                });
+            });
+        }
+    }
+    
     // Mode switcher
     document.querySelectorAll('.mode-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -418,11 +528,14 @@
             if (currentMode === 'binary') {
                 currentPair = PAIRS.binary[0];
                 currentExpiry = 60;
+                currentPlaceWindow = 20;
             } else {
                 currentPair = PAIRS.spot[0];
+                currentTimeframe = 1;
             }
             
             renderPairs();
+            renderExpiry();
             refreshSignal();
         });
     });
@@ -430,6 +543,7 @@
     document.getElementById('refreshBtn').addEventListener('click', refreshSignal);
     
     renderPairs();
+    renderExpiry();
     
     if (Notification.permission === 'default') {
         Notification.requestPermission();
