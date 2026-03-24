@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Signal Bot</title>
+    <title>Signal Bot | Live Trading Signals</title>
     <style>
         * {
             margin: 0;
@@ -15,22 +15,22 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             background: linear-gradient(135deg, #0a0f1e 0%, #0c1222 100%);
             min-height: 100vh;
-            padding: 16px;
+            padding: 20px;
             color: #e0e4f0;
         }
 
         .container {
-            max-width: 600px;
+            max-width: 500px;
             margin: 0 auto;
         }
 
         .header {
             text-align: center;
-            margin-bottom: 24px;
+            margin-bottom: 30px;
         }
 
         .header h1 {
-            font-size: 1.8rem;
+            font-size: 2rem;
             background: linear-gradient(135deg, #00d4ff, #7c3aed);
             -webkit-background-clip: text;
             background-clip: text;
@@ -40,23 +40,23 @@
         .card {
             background: rgba(18, 25, 45, 0.95);
             backdrop-filter: blur(10px);
-            border-radius: 24px;
-            padding: 20px;
-            margin-bottom: 16px;
+            border-radius: 32px;
+            padding: 24px;
+            margin-bottom: 20px;
             border: 1px solid rgba(255, 255, 255, 0.08);
         }
 
         .mode-selector {
             display: flex;
             gap: 12px;
-            margin-bottom: 20px;
+            margin-bottom: 24px;
         }
 
         .mode-btn {
             flex: 1;
-            padding: 12px;
+            padding: 14px;
             border: none;
-            border-radius: 40px;
+            border-radius: 60px;
             font-size: 1rem;
             font-weight: bold;
             cursor: pointer;
@@ -73,53 +73,33 @@
         .pair-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            margin-bottom: 16px;
+            gap: 10px;
+            margin-bottom: 20px;
         }
 
         .pair-btn {
-            padding: 10px;
+            padding: 12px;
             background: #0f172a;
             border: 1px solid #1e2a3e;
-            border-radius: 40px;
-            font-size: 0.8rem;
+            border-radius: 60px;
+            font-size: 0.85rem;
             cursor: pointer;
             color: white;
+            transition: all 0.2s;
         }
 
         .pair-btn.active {
             border-color: #00d4ff;
             background: #1e2a3e;
-        }
-
-        .expiry-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 8px;
-            margin-bottom: 16px;
-        }
-
-        .expiry-btn {
-            padding: 10px;
-            background: #0f172a;
-            border: 1px solid #1e2a3e;
-            border-radius: 40px;
-            font-size: 0.7rem;
-            cursor: pointer;
-            color: white;
-        }
-
-        .expiry-btn.active {
-            border-color: #00d4ff;
-            background: #1e2a3e;
+            color: #00d4ff;
         }
 
         .refresh-btn {
             width: 100%;
-            padding: 14px;
+            padding: 16px;
             background: linear-gradient(135deg, #3b82f6, #7c3aed);
             border: none;
-            border-radius: 40px;
+            border-radius: 60px;
             font-size: 1.1rem;
             font-weight: bold;
             color: white;
@@ -127,64 +107,43 @@
             margin-top: 8px;
         }
 
+        .refresh-btn:active {
+            transform: scale(0.98);
+        }
+
         .signal-card {
             text-align: center;
-            padding: 40px 20px;
+            padding: 50px 24px;
         }
 
         .signal {
-            font-size: 2.5rem;
+            font-size: 2.8rem;
             font-weight: bold;
-            margin: 10px 0;
+            margin: 15px 0;
+            line-height: 1.3;
         }
 
         .signal-buy { color: #22c55e; }
         .signal-sell { color: #ef4444; }
         .signal-wait { color: #f59e0b; }
-        .signal-neutral { color: #6b7280; }
         .signal-strong { color: #3b82f6; }
         .signal-strongest { color: #c084fc; text-shadow: 0 0 10px #c084fc; }
 
         .timer {
-            margin-top: 16px;
-            padding: 10px;
-            background: rgba(0,0,0,0.3);
-            border-radius: 40px;
+            margin-top: 20px;
+            padding: 12px;
+            background: rgba(0,0,0,0.4);
+            border-radius: 60px;
             font-family: monospace;
             font-size: 1rem;
         }
 
-        .instructions {
-            background: #0f172a;
-            border-left: 3px solid #00d4ff;
-        }
-
-        .instructions h3 {
-            font-size: 0.9rem;
-            margin-bottom: 10px;
-        }
-
-        .instructions p {
-            font-size: 0.75rem;
-            margin-bottom: 6px;
-            color: #9ca3af;
-        }
-
-        .mtg-box {
-            background: #1e293b;
-            padding: 10px;
-            border-radius: 12px;
-            margin: 10px 0;
-            font-size: 0.75rem;
-        }
-
-        hr {
-            border-color: #1e293b;
-            margin: 12px 0;
+        .loading {
+            opacity: 0.7;
         }
 
         @media (max-width: 500px) {
-            .signal { font-size: 1.8rem; }
+            .signal { font-size: 2rem; }
             .pair-grid { grid-template-columns: repeat(2, 1fr); }
         }
     </style>
@@ -202,7 +161,6 @@
         </div>
 
         <div id="pairContainer" class="pair-grid"></div>
-        <div id="expiryContainer" class="expiry-grid"></div>
         <button class="refresh-btn" id="refreshBtn">🔄 GET SIGNAL</button>
     </div>
 
@@ -210,62 +168,35 @@
         <div id="signalText" class="signal signal-wait">PRESS REFRESH</div>
         <div id="timerArea"></div>
     </div>
-
-    <div class="card instructions">
-        <h3>📋 RULES</h3>
-        <div class="mtg-box">
-            <strong>💰 MTG (Money Management):</strong><br>
-            • Start: <strong>$10</strong> max per trade<br>
-            • 1st LOSE → $20 next<br>
-            • 2nd LOSE → $30 next<br>
-            • 3rd LOSE in a row → <strong style="color:#f59e0b;">STOP TRADING</strong> (skip that day)<br>
-            • Max account risk: <strong>$30 total loss</strong> per session
-        </div>
-        <div class="mtg-box">
-            <strong>⏱️ BINARY PLACEMENT:</strong><br>
-            60s expiry → place in 20 sec | 90s → 30 sec | 120s → 40 sec | 5min → 60 sec
-        </div>
-        <div class="mtg-box">
-            <strong>📊 SPOT:</strong> Signal valid 3× timeframe (countdown shown)<br>
-            <strong>🚫 3 LOSSES = STOP</strong> — No revenge trading
-        </div>
-        <hr>
-        <p><strong>SIGNAL MEANING:</strong><br>
-        🔥🔥🔥 STRONGEST = All timeframes agree<br>
-        💪💪 STRONG = Current timeframe only<br>
-        ➡️ BUY/SELL = Basic signal<br>
-        ⚖️ WAIT = No trade</p>
-    </div>
 </div>
 
 <script>
-    // CONFIG
+    // ==================== REAL API ====================
     const API_KEY = 'A5MS68aoOqXE3gRAdrW4GLJ8L';
+    const API_BASE = 'https://api-v4.fcsapi.com';
     
     const PAIRS = {
         binary: ['EUR/USD', 'USD/JPY', 'GBP/USD'],
         spot: ['XAU/USD', 'BTC/USD']
     };
     
-    const BINARY_EXPIRY = [
-        { value: 60, label: '60s', window: 20 },
-        { value: 90, label: '90s', window: 30 },
-        { value: 120, label: '120s', window: 40 },
-        { value: 300, label: '5min', window: 60 }
-    ];
+    const BINARY_TIMING = {
+        60: 20,
+        90: 30,
+        120: 40,
+        300: 60
+    };
     
-    const SPOT_TF = [
-        { value: 1, label: '1min', valid: 3 },
-        { value: 5, label: '5min', valid: 15 },
-        { value: 15, label: '15min', valid: 45 },
-        { value: 30, label: '30min', valid: 90 }
-    ];
+    const SPOT_VALID = {
+        1: 3,
+        5: 15,
+        15: 45,
+        30: 90
+    };
     
     let currentMode = 'binary';
     let currentPair = 'EUR/USD';
     let currentExpiry = 60;
-    let currentPlaceWindow = 20;
-    let currentTF = 1;
     let countdownInterval = null;
     
     function showNotification(title, msg) {
@@ -274,81 +205,169 @@
         }
     }
     
-    async function fetchData() {
-        // Simulate realistic data (in production connect to FCS API)
-        // For now, generate realistic signals for demo
-        await new Promise(r => setTimeout(r, 400));
-        
-        const isBuy = Math.random() > 0.5;
-        const adx = 20 + Math.random() * 20;
-        const adxStrong = adx > 25;
-        const priceAboveSMA = Math.random() > 0.4;
-        const diCall = Math.random() > 0.4;
-        
-        let signalType = 'wait';
-        let signalText = '⚖️ WAIT';
-        let strength = 'neutral';
-        
-        if (!adxStrong) {
-            signalText = '⚖️ WAIT — No Trend';
-            strength = 'neutral';
-        } else if (priceAboveSMA && diCall) {
-            const r = Math.random();
-            if (r > 0.85) {
-                signalText = '🔥🔥🔥 STRONGEST BUY';
-                strength = 'strongest';
-                showNotification('STRONGEST BUY', currentPair);
-            } else if (r > 0.6) {
-                signalText = '💪💪 STRONG BUY';
-                strength = 'strong';
-                showNotification('STRONG BUY', currentPair);
-            } else {
-                signalText = '➡️ BUY';
-                strength = 'buy';
-            }
-        } else if (!priceAboveSMA && !diCall) {
-            const r = Math.random();
-            if (r > 0.85) {
-                signalText = '🔥🔥🔥 STRONGEST SELL';
-                strength = 'strongest';
-                showNotification('STRONGEST SELL', currentPair);
-            } else if (r > 0.6) {
-                signalText = '💪💪 STRONG SELL';
-                strength = 'strong';
-                showNotification('STRONG SELL', currentPair);
-            } else {
-                signalText = '➡️ SELL';
-                strength = 'sell';
-            }
-        } else {
-            signalText = '⚖️ WAIT — Conflicting';
-            strength = 'neutral';
-        }
-        
-        return { signalText, strength };
+    function calculateSMA(prices, period) {
+        if (prices.length < period) return null;
+        const sum = prices.slice(-period).reduce((a, b) => a + b, 0);
+        return sum / period;
     }
     
-    function updateSignal(signal, mode) {
+    function trueRange(high, low, prevClose) {
+        return Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
+    }
+    
+    function calculateADX(highs, lows, closes, period = 14) {
+        if (closes.length < period + 1) return { adx: 0, plusDI: 0, minusDI: 0 };
+        
+        let tr = [];
+        let plusDM = [];
+        let minusDM = [];
+        
+        for (let i = 1; i < closes.length; i++) {
+            const highDiff = highs[i] - highs[i-1];
+            const lowDiff = lows[i-1] - lows[i];
+            
+            tr.push(trueRange(highs[i], lows[i], closes[i-1]));
+            plusDM.push(highDiff > lowDiff && highDiff > 0 ? highDiff : 0);
+            minusDM.push(lowDiff > highDiff && lowDiff > 0 ? lowDiff : 0);
+        }
+        
+        let smoothedTR = tr.slice(0, period).reduce((a, b) => a + b, 0);
+        let smoothedPlusDM = plusDM.slice(0, period).reduce((a, b) => a + b, 0);
+        let smoothedMinusDM = minusDM.slice(0, period).reduce((a, b) => a + b, 0);
+        
+        let plusDI = [];
+        let minusDI = [];
+        let dx = [];
+        
+        for (let i = period; i < tr.length; i++) {
+            smoothedTR = smoothedTR - (smoothedTR / period) + tr[i];
+            smoothedPlusDM = smoothedPlusDM - (smoothedPlusDM / period) + plusDM[i];
+            smoothedMinusDM = smoothedMinusDM - (smoothedMinusDM / period) + minusDM[i];
+            
+            const pDI = (smoothedPlusDM / smoothedTR) * 100;
+            const mDI = (smoothedMinusDM / smoothedTR) * 100;
+            plusDI.push(pDI);
+            minusDI.push(mDI);
+            
+            const diSum = pDI + mDI;
+            if (diSum > 0) {
+                dx.push(Math.abs(pDI - mDI) / diSum * 100);
+            } else {
+                dx.push(0);
+            }
+        }
+        
+        if (dx.length < period) return { adx: 0, plusDI: plusDI[plusDI.length-1] || 0, minusDI: minusDI[minusDI.length-1] || 0 };
+        
+        let adx = dx.slice(-period).reduce((a, b) => a + b, 0) / period;
+        
+        return {
+            adx: adx,
+            plusDI: plusDI[plusDI.length-1] || 0,
+            minusDI: minusDI[minusDI.length-1] || 0
+        };
+    }
+    
+    async function fetchRealData(symbol) {
+        let apiSymbol = symbol.replace('/', '');
+        
+        try {
+            const url = `${API_BASE}/forex/history?symbol=${apiSymbol}&period=1h&limit=100&access_key=${API_KEY}`;
+            
+            const response = await fetch(url);
+            const data = await response.json();
+            
+            if (!data.response || data.response.length < 50) {
+                throw new Error('Insufficient data');
+            }
+            
+            const candles = data.response;
+            const closes = candles.map(c => parseFloat(c.c));
+            const highs = candles.map(c => parseFloat(c.h));
+            const lows = candles.map(c => parseFloat(c.l));
+            const currentPrice = closes[closes.length - 1];
+            
+            const sma50 = calculateSMA(closes, 50);
+            const priceAboveSMA = currentPrice > sma50;
+            
+            const { adx, plusDI, minusDI } = calculateADX(highs, lows, closes, 14);
+            const adxStrong = adx > 25;
+            const diCall = plusDI > minusDI;
+            const diPut = minusDI > plusDI;
+            
+            return {
+                symbol,
+                priceAboveSMA,
+                adxStrong,
+                diCall,
+                diPut,
+                adx
+            };
+            
+        } catch (error) {
+            console.error('API Error:', error);
+            return null;
+        }
+    }
+    
+    function determineSignal(data) {
+        if (!data) return { signalText: '⚠️ ERROR', strength: 'wait' };
+        
+        const { priceAboveSMA, adxStrong, diCall, diPut, adx } = data;
+        
+        if (!adxStrong) {
+            return { signalText: '⚖️ WAIT', strength: 'wait' };
+        }
+        
+        let signalDirection = null;
+        if (priceAboveSMA && diCall) signalDirection = 'BUY';
+        else if (!priceAboveSMA && diPut) signalDirection = 'SELL';
+        else signalDirection = 'conflict';
+        
+        if (signalDirection === 'conflict') {
+            return { signalText: '⚖️ WAIT', strength: 'wait' };
+        }
+        
+        if (adx > 40) {
+            return { 
+                signalText: signalDirection === 'BUY' ? '🔥🔥🔥 STRONGEST BUY' : '🔥🔥🔥 STRONGEST SELL',
+                strength: 'strongest'
+            };
+        } else if (adx > 30) {
+            return { 
+                signalText: signalDirection === 'BUY' ? '💪💪 STRONG BUY' : '💪💪 STRONG SELL',
+                strength: 'strong'
+            };
+        } else {
+            return { 
+                signalText: signalDirection === 'BUY' ? '➡️ BUY' : '➡️ SELL',
+                strength: signalDirection === 'BUY' ? 'buy' : 'sell'
+            };
+        }
+    }
+    
+    function updateSignalUI(signal, mode) {
         const el = document.getElementById('signalText');
         el.textContent = signal.signalText;
         el.className = 'signal';
         
-        if (signal.strength === 'buy') el.className = 'signal signal-buy';
-        else if (signal.strength === 'sell') el.className = 'signal signal-sell';
-        else if (signal.strength === 'strong') el.className = 'signal signal-strong';
-        else if (signal.strength === 'strongest') el.className = 'signal signal-strongest';
-        else if (signal.strength === 'neutral') el.className = 'signal signal-neutral';
-        else el.className = 'signal signal-wait';
+        if (signal.strength === 'buy') el.classList.add('signal-buy');
+        else if (signal.strength === 'sell') el.classList.add('signal-sell');
+        else if (signal.strength === 'strong') el.classList.add('signal-strong');
+        else if (signal.strength === 'strongest') el.classList.add('signal-strongest');
+        else el.classList.add('signal-wait');
         
-        // Placement hint for binary
-        if (mode === 'binary' && signal.strength !== 'neutral') {
+        if (signal.strength === 'strong' || signal.strength === 'strongest') {
+            showNotification('Signal', signal.signalText);
+        }
+        
+        if (mode === 'binary' && signal.strength !== 'wait') {
+            const placeWindow = BINARY_TIMING[currentExpiry] || 30;
             const timerDiv = document.getElementById('timerArea');
-            timerDiv.innerHTML = `<div class="timer">⏰ PLACE WITHIN ${currentPlaceWindow} SECONDS</div>`;
+            timerDiv.innerHTML = `<div class="timer">⏰ PLACE WITHIN ${placeWindow} SECONDS</div>`;
             setTimeout(() => {
                 if (timerDiv.innerHTML.includes('PLACE')) timerDiv.innerHTML = '';
             }, 5000);
-        } else if (mode !== 'spot') {
-            document.getElementById('timerArea').innerHTML = '';
         }
     }
     
@@ -356,8 +375,6 @@
         const el = document.getElementById('signalText');
         el.textContent = '📢 BE RESPONSIBLE AND WAIT';
         el.className = 'signal signal-wait';
-        document.getElementById('timerArea').innerHTML = '';
-        if (countdownInterval) clearInterval(countdownInterval);
     }
     
     function startSpotCountdown(minutes) {
@@ -369,12 +386,11 @@
             const remaining = endTime - Date.now();
             if (remaining <= 0) {
                 clearInterval(countdownInterval);
-                timerDiv.innerHTML = '<div class="timer">⏰ Signal expired — Refresh</div>';
-                showWaitMessage();
+                timerDiv.innerHTML = '<div class="timer">⏰ EXPIRED — REFRESH</div>';
             } else {
                 const mins = Math.floor(remaining / 60000);
                 const secs = Math.floor((remaining % 60000) / 1000);
-                timerDiv.innerHTML = `<div class="timer">⏳ VALID FOR: ${mins}m ${secs}s</div>`;
+                timerDiv.innerHTML = `<div class="timer">⏳ VALID: ${mins}m ${secs}s</div>`;
             }
         }
         update();
@@ -382,26 +398,35 @@
     }
     
     async function refreshSignal() {
-        document.getElementById('signalText').textContent = '🔄 LOADING...';
-        document.getElementById('signalText').className = 'signal signal-wait';
+        const el = document.getElementById('signalText');
+        el.textContent = '🔄 LOADING...';
+        el.className = 'signal signal-wait';
+        
         if (countdownInterval) clearInterval(countdownInterval);
         document.getElementById('timerArea').innerHTML = '';
         
-        const signal = await fetchData();
+        const data = await fetchRealData(currentPair);
+        
+        if (!data) {
+            el.textContent = '⚠️ API ERROR';
+            return;
+        }
+        
+        const signal = determineSignal(data);
         
         if (currentMode === 'binary') {
-            if (signal.strength === 'neutral') {
+            if (signal.strength === 'wait') {
                 showWaitMessage();
             } else {
-                updateSignal(signal, 'binary');
+                updateSignalUI(signal, 'binary');
             }
         } else {
-            const tf = SPOT_TF.find(t => t.value === currentTF);
-            if (signal.strength === 'neutral') {
+            if (signal.strength === 'wait') {
                 showWaitMessage();
             } else {
-                updateSignal(signal, 'spot');
-                startSpotCountdown(tf.valid);
+                updateSignalUI(signal, 'spot');
+                const validMinutes = SPOT_VALID[30] || 15;
+                startSpotCountdown(validMinutes);
             }
         }
     }
@@ -410,6 +435,7 @@
         const container = document.getElementById('pairContainer');
         const pairs = PAIRS[currentMode];
         container.innerHTML = pairs.map(p => `<button class="pair-btn ${currentPair === p ? 'active' : ''}" data-pair="${p}">${p}</button>`).join('');
+        
         document.querySelectorAll('.pair-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 currentPair = btn.dataset.pair;
@@ -419,46 +445,21 @@
         });
     }
     
-    function renderExpiry() {
-        const container = document.getElementById('expiryContainer');
-        if (currentMode === 'binary') {
-            container.innerHTML = BINARY_EXPIRY.map(e => `<button class="expiry-btn ${currentExpiry === e.value ? 'active' : ''}" data-exp="${e.value}" data-win="${e.window}">${e.label}</button>`).join('');
-            document.querySelectorAll('.expiry-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    currentExpiry = parseInt(btn.dataset.exp);
-                    currentPlaceWindow = parseInt(btn.dataset.win);
-                    renderExpiry();
-                    refreshSignal();
-                });
-            });
-        } else {
-            container.innerHTML = SPOT_TF.map(t => `<button class="expiry-btn ${currentTF === t.value ? 'active' : ''}" data-tf="${t.value}">${t.label}</button>`).join('');
-            document.querySelectorAll('.expiry-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    currentTF = parseInt(btn.dataset.tf);
-                    renderExpiry();
-                    refreshSignal();
-                });
-            });
-        }
-    }
-    
     // Mode switcher
     document.querySelectorAll('.mode-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             currentMode = btn.dataset.mode;
+            
             if (currentMode === 'binary') {
                 currentPair = PAIRS.binary[0];
                 currentExpiry = 60;
-                currentPlaceWindow = 20;
             } else {
                 currentPair = PAIRS.spot[0];
-                currentTF = 1;
             }
+            
             renderPairs();
-            renderExpiry();
             refreshSignal();
         });
     });
@@ -466,11 +467,12 @@
     document.getElementById('refreshBtn').addEventListener('click', refreshSignal);
     
     renderPairs();
-    renderExpiry();
     
-    if (Notification.permission === 'default') Notification.requestPermission();
+    if (Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
     
     refreshSignal();
 </script>
 </body>
-    </html>
+</html>
