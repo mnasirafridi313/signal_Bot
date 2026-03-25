@@ -1,151 +1,177 @@
 <script>
-let PUBLIC_KEY = "A5MS68aoOqXE3gRAdrW4GLJ8L";
-let apiKey = "";
+// ===== CONFIG =====
+const PUBLIC_KEY = "A5MS68aoOqXE3gRAdrW4GLJ8L";
+let apiKey = localStorage.getItem("apiKey") || PUBLIC_KEY;
 let timerInt;
 
-// ===== INIT =====
-window.onload = function(){
-  const saved = localStorage.getItem("apiKey");
-
-  if(saved){
-    apiKey = saved;
-    log("Using USER API");
-  }else{
-    apiKey = PUBLIC_KEY;
-    log("Using PUBLIC API");
-  }
-};
-
-// ===== SAVE USER KEY =====
-function saveKey(){
-  const key = document.getElementById("api").value.trim();
-
-  if(key.length < 10){
-    log("Invalid API key");
-    return;
-  }
-
-  localStorage.setItem("apiKey", key);
-  apiKey = key;
-  log("User API saved");
-}
-
-// ===== DEBUG LOGGER =====
+// ===== DEBUG =====
 function log(msg){
   document.getElementById("debug").innerText += msg + "\n";
 }
+window.onerror = (m,u,l)=>log("ERR: "+m+" @"+l);
 
-// ===== ERROR CATCH =====
-window.onerror = function(msg, url, line){
-  log("ERROR: " + msg + " line: " + line);
-};
-
-// ===== FETCH PRICE =====
-async function fetchPrice(symbol){
-  const url=`https://api-v4.fcsapi.com/forex/latest?symbol=${symbol}&access_key=${apiKey}`;
-
-  const res = await fetch(url);
-  const data = await res.json();
-
-  if(!data.response){
-    throw "API LIMIT / ERROR";
-  }
-
-  return parseFloat(data.response[0].c);
-}
-
-// ===== FETCH HISTORY =====
-async function fetchHistory(symbol, tf){
+// ===== FETCH =====
+async function fetchData(symbol, tf){
   const url=`https://api-v4.fcsapi.com/forex/history?symbol=${symbol}&period=${tf}&access_key=${apiKey}`;
+  const res=await fetch(url);
+  const data=await res.json();
 
-  const res = await fetch(url);
-  const data = await res.json();
+  if(!data.response) throw "API error";
 
-  if(!data.response){
-    throw "History API error";
-  }
-
-  return data.response.map(c=>parseFloat(c.c));
+  return data.response.map(c=>({
+    h:parseFloat(c.h),
+    l:parseFloat(c.l),
+    c:parseFloat(c.c)
+  }));
 }
 
 // ===== SMA =====
-function sma(arr,n){
-  const slice = arr.slice(-n);
+function SMA(data,n){
+  const arr=data.map(x=>x.c);
+  const slice=arr.slice(-n);
   return slice.reduce((a,b)=>a+b,0)/n;
+}
+
+// ===== ADX + DI =====
+function ADX(data, period=14){
+  let trs=[], pdm=[], mdm=[];
+
+  for(let i=1;i<data.length;i++){
+    let up = data[i].h - data[i-1].h;
+    let down = data[i-1].l - data[i].l;
+
+    pdm.push(up>down && up>0 ? up : 0);
+    mdm.push(down>up && down>0 ? down : 0);
+
+    trs.push(Math.max(
+      data[i].h - data[i].l,
+      Math.abs(data[i].h - data[i-1].c),
+      Math.abs(data[i].l - data[i-1].c)
+    ));
+  }
+
+  let atr = trs.slice(0,period).reduce((a,b)=>a+b,0);
+  let p = pdm.slice(0,period).reduce((a,b)=>a+b,0);
+  let m = mdm.slice(0,period).reduce((a,b)=>a+b,0);
+
+  for(let i=period;i<trs.length;i++){
+    atr = atr - atr/period + trs[i];
+    p = p - p/period + pdm[i];
+    m = m - m/period + mdm[i];
+  }
+
+  let plusDI = 100*(p/atr);
+  let minusDI = 100*(m/atr);
+
+  let dx = Math.abs(plusDI - minusDI)/(plusDI + minusDI)*100;
+
+  return {adx:dx, plusDI, minusDI};
 }<script>
-// ===== SIGNAL LOGIC =====
-function getSignalLogic(price, closes){
-  if(closes.length < 50){
-    return {text:"WAIT", cls:"neutral"};
+// ===== ANALYZE ONE TF =====
+function analyze(data){
+  if(data.length < 50) return {dir:null, valid:false};
+
+  const price = data[data.length-1].c;
+  const sma = SMA(data,50);
+  const adx = ADX(data);
+
+  if(adx.adx < 25){
+    return {dir:null, valid:false};
   }
 
-  const s = sma(closes,50);
-
-  if(price > s){
-    return {text:"BUY", cls:"buy"};
-  }else if(price < s){
-    return {text:"SELL", cls:"sell"};
-  }else{
-    return {text:"WAIT", cls:"neutral"};
+  if(price > sma && adx.plusDI > adx.minusDI){
+    return {dir:"BUY", valid:true};
   }
+
+  if(price < sma && adx.minusDI > adx.plusDI){
+    return {dir:"SELL", valid:true};
+  }
+
+  return {dir:null, valid:false};
 }
 
-// ===== TIMER =====
-function startTimer(sec){
-  clearInterval(timerInt);
+// ===== MULTI TF =====
+async function multiConfirm(symbol){
+  const tfs=["1m","5m","15m","30m"];
 
-  timerInt = setInterval(()=>{
-    sec--;
-    document.getElementById("timer").innerText =
-      "Time: " + sec + "s";
+  let results=[];
 
-    if(sec <= 0) clearInterval(timerInt);
-  },1000);
+  for(let tf of tfs){
+    const data = await fetchData(symbol, tf);
+    results.push(analyze(data));
+  }
+
+  const dirs = results.map(r=>r.dir);
+
+  if(dirs.every(d=>d==="BUY")) return {type:"STRONGEST", dir:"BUY"};
+  if(dirs.every(d=>d==="SELL")) return {type:"STRONGEST", dir:"SELL"};
+
+  const current = results[0];
+
+  if(current.valid){
+    return {type:"STRONG", dir:current.dir};
+  }
+
+  return {type:"NEUTRAL"};
 }
 
-// ===== MAIN FUNCTION =====
+// ===== MAIN =====
 async function getSignal(){
   try{
-    document.getElementById("signal").innerText = "Loading...";
+    document.getElementById("signal").innerText="Loading...";
 
-    const pair = document.getElementById("pair").value;
-    const tf   = document.getElementById("time").value;
+    const pair=document.getElementById("pair").value;
+    const mode=document.getElementById("mode").value;
+    const tf=document.getElementById("time").value;
 
-    log("Fetching price...");
-    const price = await fetchPrice(pair);
+    const res = await multiConfirm(pair);
 
-    log("Fetching candles...");
-    const closes = await fetchHistory(pair, tf);
+    let text="⚖️ NEUTRAL";
+    let cls="neutral";
 
-    document.getElementById("price").innerText =
-      "Price: " + price;
+    if(res.type==="STRONGEST"){
+      text="🔥🔥🔥 STRONGEST "+res.dir;
+      cls="strongest";
+    }
+    else if(res.type==="STRONG"){
+      text="💪💪 STRONG "+res.dir;
+      cls="strong";
+    }
 
-    const result = getSignalLogic(price, closes);
+    const sig=document.getElementById("signal");
+    sig.innerText=text;
+    sig.className="signal "+cls;
 
-    const sig = document.getElementById("signal");
-    sig.innerText = result.text;
-    sig.className = "signal " + result.cls;
+    // ===== TIMER =====
+    let sec=30;
 
-    // ===== TIMER RULE =====
-    let sec = 30;
-
-    if(tf==="60") sec=30;
-    if(tf==="90") sec=45;
-    if(tf==="120") sec=60;
-    if(tf==="300") sec=150;
-
-    if(tf==="1m") sec=180;
-    if(tf==="5m") sec=900;
-    if(tf==="15m") sec=2700;
-    if(tf==="30m") sec=5400;
+    if(mode==="binary"){
+      if(tf==="60") sec=30;
+      if(tf==="90") sec=45;
+      if(tf==="120") sec=60;
+      if(tf==="300") sec=150;
+    }else{
+      if(tf==="1m") sec=180;
+      if(tf==="5m") sec=900;
+      if(tf==="15m") sec=2700;
+      if(tf==="30m") sec=5400;
+    }
 
     startTimer(sec);
-
-    log("Done");
 
   }catch(e){
     document.getElementById("signal").innerText="ERROR";
     log(e);
   }
 }
-</script><div id="debug"></div>
+
+// ===== TIMER =====
+function startTimer(sec){
+  clearInterval(timerInt);
+  timerInt=setInterval(()=>{
+    sec--;
+    document.getElementById("timer").innerText="Time: "+sec+"s";
+    if(sec<=0) clearInterval(timerInt);
+  },1000);
+}
+</script>
